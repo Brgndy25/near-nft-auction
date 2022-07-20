@@ -49,12 +49,12 @@ impl Contract {
         }
     }
 
-    pub fn place_bid(&mut self, amount: u128, bid_account: AccountId) {
+    pub fn place_bid(&mut self, amount: u128) {
         if amount > self.currentbid {
             self.currentbid = amount;
-            self.highestbidder = bid_account.clone();
+            self.highestbidder = env::signer_account_id();
             self.bids.push(Bids {
-                account: bid_account,
+                account: env::signer_account_id(),
                 bid_amount: amount,
             });
         } else {
@@ -71,28 +71,15 @@ impl Contract {
         env::log_str(&format!("BID HISTORY{:#?}", self.bids).to_string());
     }
 
-    /*  pub fn auction_end(&mut self) {
-        env::log_str(&format!("AMOUNT DEPOSITED {}", self.currentbid).to_string());
-        let deal = Promise::new(self.owner_id.clone())
-            .transfer(self.currentbid * 1000000000000000000000000);
-        let transfer_nft = ext_nft::nft_transfer(
-            self.highestbidder.to_string(),
-            self.auc_token_id.to_string(),
-            None,
-            None,
-            AccountId::from_str(NFT_ACCOUNT).unwrap(),
-            1,
-            NFT_TRANSFER_GAS,
-        );
-    }
-    */
     #[payable]
     pub fn auction_end(&mut self) {
-        env::log_str(&format!("AMOUNT DEPOSITED {}", self.currentbid).to_string());
-        if env::attached_deposit() < self.currentbid {
-            env::panic_str("NOT ENOUGH NEAR");
-        } else {
+        if env::attached_deposit() == self.currentbid
+            && env::signer_account_id() == self.highestbidder
+        {
             let deal = Promise::new(self.owner_id.clone()).transfer(env::attached_deposit());
+            env::log_str(
+                &format!("{} NEAR TRANSFERED TO {}", self.currentbid, self.owner_id).to_string(),
+            );
             let transfer_nft = ext_nft::nft_transfer(
                 self.highestbidder.to_string(),
                 self.auc_token_id.to_string(),
@@ -102,7 +89,16 @@ impl Contract {
                 1,
                 NFT_TRANSFER_GAS,
             );
-        }
+            env::log_str(
+                &format!(
+                    "TOKEN {} TRANSFERED TO {}",
+                    self.auc_token_id, self.highestbidder
+                )
+                .to_string(),
+            );
+        } else {
+            env::panic_str("ERROR");
+        };
     }
 
     pub fn show_owner(&mut self) {
